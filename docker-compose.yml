@@ -1,0 +1,53 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.3
+    hostname: zookeeper
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - kafka-cluster-private-net
+  kafka:
+    image: confluentinc/cp-kafka:7.5.3
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - '9092:9092'
+    depends_on:
+      - zookeeper
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_INTER_BROKER_LISTENER_NAME=EXTERNAL
+      - KAFKA_LISTENERS=CLIENT://:29092,CONTROLLER://:9093,EXTERNAL://:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      # for local access
+      - KAFKA_ADVERTISED_LISTENERS=CLIENT://kafka:29092,EXTERNAL://localhost:9092
+      # for external access
+      # - KAFKA_ADVERTISED_LISTENERS=CLIENT://kafka:29092,EXTERNAL://18.218.213.169:9092
+      # - advertised.host.name=18.218.213.169
+    networks:
+      - kafka-cluster-private-net
+  redpanda:
+    image: 'docker.redpanda.com/redpandadata/console:latest'
+    container_name: redpanda
+    entrypoint: /bin/sh
+    command: -c "echo \"$$CONSOLE_CONFIG_FILE\" > /tmp/config.yml; /app/console"
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["kafka:29092"]
+        server:
+          listenPort: 9000
+    ports:
+      - "9000:9000"
+    depends_on:
+      - "kafka"
+    networks:
+      - kafka-cluster-private-net
+networks:
+  kafka-cluster-private-net:
+    driver: bridge
